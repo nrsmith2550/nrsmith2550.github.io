@@ -9,20 +9,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --navy:#0B1F3A;
-    --navy-2:#122A4D;
-    --navy-3:#0A1830;
+    --navy:#14507C;
+    --navy-2:#1B6089;
+    --navy-3:#0D3355;
     --white:#FFFFFF;
-    --mist:#F3F6F8;
-    --steel:#4A7A9D;
-    --rinse:#12A594;
-    --rinse-dark:#0C7F72;
-    --rinse-light:#E4F6F3;
-    --ink:#1B2430;
-    --ink-soft:#4B5563;
-    --line:#E2E8EE;
-    --line-dark:#1E3457;
-    --shadow: 0 20px 50px -20px rgba(11,31,58,0.25);
+    --mist:#EFF6F8;
+    --steel:#4E86A6;
+    --rinse:#2CA6BE;
+    --rinse-dark:#1D7F93;
+    --rinse-light:#E3F5F8;
+    --gold:#B89B4E;
+    --gold-dark:#977E3B;
+    --ink:#16324A;
+    --ink-soft:#4B5F72;
+    --line:#DCEAEF;
+    --line-dark:#215076;
+    --shadow: 0 20px 50px -20px rgba(20,80,124,0.3);
     --font-display:'Big Shoulders Display', sans-serif;
     --font-body:'Inter', sans-serif;
     --font-mono:'IBM Plex Mono', monospace;
@@ -144,7 +146,12 @@
     gap:10px;
   }
   .logo-mark{
-    width:34px; height:34px; flex:none;
+    height:38px; width:auto; flex:none;
+  }
+  .logo-text-navy{color:var(--navy);}
+  .logo-text-teal{color:var(--rinse-dark);}
+  .footer-logo-full{
+    width:150px; height:auto; margin-bottom:6px;
   }
   nav.main-nav{display:flex; gap:30px;}
   nav.main-nav a{
@@ -446,7 +453,7 @@
     background:var(--mist); border-radius:12px; padding:30px; border:1px solid var(--line);
   }
   .stars{display:flex; gap:3px; margin-bottom:16px;}
-  .stars svg{width:16px; height:16px; fill:var(--rinse); stroke:none;}
+  .stars svg{width:16px; height:16px; fill:var(--gold); stroke:none;}
   .testi-quote{font-size:15.5px; color:var(--ink); font-style:italic;}
   .testi-name{
     margin-top:20px; font-family:var(--font-mono); font-size:13px; color:var(--steel); font-weight:600;
@@ -518,6 +525,17 @@
     font-size:12px; color:var(--ink-soft); margin-top:6px; font-style:italic;
   }
   .quote-form .btn-primary{width:100%; justify-content:center; margin-top:6px;}
+  .estimate-btn{width:100%; justify-content:center; margin-bottom:16px;}
+  .estimate-result{
+    background:var(--rinse-light); border:1.5px solid var(--rinse); border-radius:9px;
+    padding:16px 18px; margin-bottom:18px;
+  }
+  .estimate-range{
+    font-family:var(--font-mono); font-size:22px; font-weight:600; color:var(--rinse-dark);
+  }
+  .estimate-detail{
+    font-size:12.5px; color:var(--ink-soft); margin-top:6px; line-height:1.5;
+  }
 
   @media (max-width:900px){
     .final-grid{grid-template-columns:1fr;}
@@ -561,12 +579,8 @@
 <header class="site-header">
   <div class="container header-row">
     <a href="#top" class="logo">
-      <svg class="logo-mark" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="17" cy="17" r="16" stroke="#0B1F3A" stroke-width="2"/>
-        <path d="M9 19c2-8 5-11 8-13 3 2 6 5 8 13-2 3-5 5-8 5s-6-2-8-5z" fill="#12A594"/>
-        <path d="M9 19c2-8 5-11 8-13" stroke="#0B1F3A" stroke-width="1.4" stroke-linecap="round"/>
-      </svg>
-      Pittsburgh Softwash
+      <img class="logo-mark" src="assetsPittSoftwash1/logo-full.png" alt="Pittsburgh Softwash">
+      <span><span class="logo-text-navy">Pittsburgh</span> <span class="logo-text-teal">Softwash</span></span>
     </a>
     <nav class="main-nav" id="mainNav">
       <a href="#services">Services</a>
@@ -978,24 +992,37 @@
           <label for="faddress">Address / Neighborhood</label>
           <input type="text" id="faddress" name="address" placeholder="North Braddock, PA">
         </div>
-        <div class="field">
-          <label for="fservice">Service Needed</label>
-          <select id="fservice" name="service">
-            <option>Full Exterior Package</option>
-            <option>Roof Softwash</option>
-            <option>House &amp; Siding</option>
-            <option>Driveway &amp; Concrete</option>
-            <option>Deck &amp; Fence</option>
-            <option>Windows</option>
-            <option>Gutters</option>
-          </select>
+        <div class="form-row">
+          <div class="field">
+            <label for="fservice">Service Needed</label>
+            <select id="fservice" name="service">
+              <option value="full">Full Exterior Package</option>
+              <option value="roof">Roof Softwash</option>
+              <option value="siding">House &amp; Siding</option>
+              <option value="driveway">Driveway &amp; Concrete</option>
+              <option value="deck">Deck &amp; Fence</option>
+              <option value="windows">Windows</option>
+              <option value="gutters">Gutters</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="fsqft">Home Square Footage</label>
+            <input type="number" id="fsqft" name="sqft" min="0" step="50" placeholder="e.g. 2000">
+          </div>
         </div>
         <div class="field">
           <label for="fmessage">Anything we should know?</label>
           <textarea id="fmessage" name="message" placeholder="Roof hasn't been cleaned in 3 years, two-story colonial..."></textarea>
         </div>
+
+        <button type="button" class="btn btn-outline dark estimate-btn" id="estimateBtn" onclick="estimatePrice()">Estimate My Price Range</button>
+        <div class="estimate-result" id="estimateResult" hidden>
+          <p class="estimate-range" id="estimateRangeText"></p>
+          <p class="estimate-detail" id="estimateDetailText"></p>
+        </div>
+
         <button type="submit" class="btn btn-primary">Request My Free Quote</button>
-        <p class="form-note">This form is a front-end template — connect it to an email service or CRM to start receiving requests.</p>
+        <p class="form-note">This form is a front-end template — connect it to an email service or CRM to start receiving requests. Price estimate is a ballpark based on published 2026 industry pricing, not a formal quote.</p>
       </form>
     </div>
   </section>
@@ -1006,12 +1033,8 @@
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <a href="#top" class="logo">
-          <svg class="logo-mark" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="17" cy="17" r="16" stroke="#FFFFFF" stroke-width="2"/>
-            <path d="M9 19c2-8 5-11 8-13 3 2 6 5 8 13-2 3-5 5-8 5s-6-2-8-5z" fill="#12A594"/>
-          </svg>
-          Pittsburgh Softwash
+        <a href="#top">
+          <img class="footer-logo-full" src="assetsPittSoftwash1/logo-full.png" alt="Pittsburgh Softwash">
         </a>
         <p>Softwash roof &amp; siding cleaning, pressure washing, and full exterior care for Allegheny County homes.</p>
       </div>
@@ -1077,6 +1100,45 @@
   }
   compareRange.addEventListener('input', (e) => updateCompare(e.target.value));
   updateCompare(50);
+
+  // Price estimator — ranges based on published 2026 industry pricing
+  // (Angi, Housecall Pro, Homewyse, Swivl) for softwash/pressure washing services
+  const serviceRates = {
+    full:     { type:'sqft', low:0.35, high:0.75, min:450, label:'Full Exterior Package' },
+    roof:     { type:'sqft', low:0.25, high:0.75, min:350, label:'Roof Softwash' },
+    siding:   { type:'sqft', low:0.15, high:0.55, min:250, label:'House & Siding Wash' },
+    driveway: { type:'flat', low:100,  high:500,          label:'Driveway & Concrete Cleaning' },
+    deck:     { type:'flat', low:150,  high:400,          label:'Deck & Fence Restoration' },
+    windows:  { type:'flat', low:150,  high:350,          label:'Window Washing' },
+    gutters:  { type:'flat', low:75,   high:250,          label:'Gutter Cleaning' }
+  };
+
+  function estimatePrice(){
+    const service = document.getElementById('fservice').value;
+    const sqft = parseFloat(document.getElementById('fsqft').value) || 0;
+    const data = serviceRates[service];
+    const resultBox = document.getElementById('estimateResult');
+    const rangeText = document.getElementById('estimateRangeText');
+    const detailText = document.getElementById('estimateDetailText');
+
+    resultBox.hidden = false;
+
+    if (data.type === 'sqft'){
+      if (sqft <= 0){
+        rangeText.textContent = 'Enter your square footage above';
+        detailText.textContent = data.label + ' is typically priced by home size — add your square footage for an estimate.';
+        return;
+      }
+      const low = Math.max(data.min, sqft * data.low);
+      const high = Math.max(data.min * 1.4, sqft * data.high);
+      rangeText.textContent = '$' + Math.round(low).toLocaleString() + ' – $' + Math.round(high).toLocaleString();
+      detailText.textContent = 'Based on $' + data.low.toFixed(2) + '–$' + data.high.toFixed(2) + ' per sq ft for ' + data.label.toLowerCase() +
+        ', a ' + sqft.toLocaleString() + ' sq ft home, and a typical $' + data.min + ' minimum service fee. Source: aggregated 2026 industry pricing (Angi, Housecall Pro, Homewyse, Swivl). Your actual quote depends on condition, access, and materials.';
+    } else {
+      rangeText.textContent = '$' + data.low.toLocaleString() + ' – $' + data.high.toLocaleString();
+      detailText.textContent = data.label + ' is usually priced per job rather than by home square footage. Source: aggregated 2026 industry pricing (Angi, Housecall Pro). Your actual quote depends on size, condition, and access.';
+    }
+  }
 
   // Scroll reveal
   const revealEls = document.querySelectorAll('.reveal');
