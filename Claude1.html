@@ -995,7 +995,10 @@
           <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>Photos sent when the job is complete</li>
         </ul>
       </div>
-      <form class="quote-form reveal" onsubmit="return false;">
+      <form class="quote-form reveal" action="https://api.staticforms.dev/submit" method="POST">
+      <input type="hidden" name="apiKey" value="sf_2fecc34023d7d5d2266ba47d" />
+      <input type="hidden" name="subject" value="Pittsburgh Softwash Lead" />
+
         <div class="form-row">
           <div class="field">
             <label for="fname">Name</label>
@@ -1023,7 +1026,6 @@
               <option value="siding">House &amp; Siding</option>
               <option value="driveway">Driveway &amp; Concrete</option>
               <option value="deck">Deck &amp; Fence</option>
-              <option value="windows">Windows</option>
               <option value="gutters">Gutters</option>
             </select>
           </div>
@@ -1041,15 +1043,35 @@
         <div class="estimate-result" id="estimateResult" hidden>
           <p class="estimate-range" id="estimateRangeText"></p>
           <p class="estimate-detail" id="estimateDetailText"></p>
-        </div>
-
-        <button type="submit" class="btn btn-primary">Request My Free Quote</button>
+          <button type="submit" class="btn btn-primary">Request My Free Quote</button>
         <p class="form-note">This form is a front-end template — connect it to an email service or CRM to start receiving requests. Price estimate is a ballpark based on published 2026 industry pricing, not a formal quote.</p>
       </form>
     </div>
   </section>
 
 </main>
+
+          <form action="https://api.staticforms.dev/submit" method="POST">
+  <input type="hidden" name="apiKey" value="sf_2fecc34023d7d5d2266ba47d" />
+  <input type="hidden" name="subject" value="Nathan Smith submission" />
+
+  <label>Name
+    <input type="text" name="name" required />
+  </label>
+
+  <label>Email
+    <input type="email" name="email" required />
+  </label>
+
+  <label>Message
+    <textarea name="message" required></textarea>
+  </label>
+
+  <button type="submit">Send</button>
+</form>
+        </div>
+
+        
 
 <footer>
   <div class="container">
