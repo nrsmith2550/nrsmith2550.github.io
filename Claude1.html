@@ -123,6 +123,25 @@
   .btn-outline.dark{border-color:var(--navy); color:var(--navy);}
   .btn-outline.dark:hover{background:var(--navy); color:var(--white);}
 
+  .top-bar{
+    background:var(--navy-3); color:#AFC2D6;
+  }
+  .top-bar-row{
+    display:flex; align-items:center; justify-content:flex-end; gap:26px;
+    padding:9px 0; font-family:var(--font-mono); font-size:12.5px; font-weight:500;
+  }
+  .top-bar-row a{
+    display:flex; align-items:center; gap:7px; color:#AFC2D6;
+    transition:color .15s ease;
+  }
+  .top-bar-row a:hover{color:var(--rinse);}
+  .top-bar-row svg{stroke:var(--rinse); flex:none;}
+
+  @media (max-width:600px){
+    .top-bar-row{justify-content:center; gap:18px; font-size:11.5px;}
+    .top-bar-email{display:none;}
+  }
+
   /* Header */
   .site-header{
     position:sticky; top:0; z-index:100;
@@ -132,7 +151,7 @@
   }
   .header-row{
     display:flex; align-items:center; justify-content:space-between;
-    padding:16px 0;
+    padding:16px 0; flex-wrap:nowrap; gap:16px;
   }
   .logo{
     font-family:var(--font-display);
@@ -145,41 +164,37 @@
     align-items:center;
     gap:10px;
   }
-  .logo-mark{
-    height:38px; width:auto; flex:none;
+  .header-logo-img{
+    height:46px; width:auto; flex:none;
   }
-  .logo-text-navy{color:var(--navy);}
-  .logo-text-teal{color:var(--rinse-dark);}
   .footer-logo-full{
     width:150px; height:auto; margin-bottom:6px;
   }
-  nav.main-nav{display:flex; gap:30px;}
+  nav.main-nav{display:flex; gap:18px; flex-wrap:nowrap;}
   nav.main-nav a{
-    font-size:14.5px; font-weight:600; color:var(--ink);
-    padding:6px 2px; border-bottom:2px solid transparent;
+    font-size:14px; font-weight:600; color:var(--ink);
+    padding:6px 2px; border-bottom:2px solid transparent; white-space:nowrap;
     transition:border-color .15s ease, color .15s ease;
   }
   nav.main-nav a:hover{color:var(--rinse-dark); border-color:var(--rinse);}
   .header-actions{display:flex; align-items:center; gap:18px;}
-  .header-phone{
-    font-family:var(--font-mono); font-weight:600; font-size:14.5px; color:var(--navy);
-    display:flex; align-items:center; gap:8px;
-  }
   .nav-toggle{
     display:none; background:none; border:none; padding:8px;
   }
   .nav-toggle svg{stroke:var(--navy);}
 
-  @media (max-width:920px){
+  @media (max-width:1100px){
     nav.main-nav{
       position:fixed; inset:64px 0 0 0; background:var(--white);
       flex-direction:column; padding:28px; gap:0; transform:translateX(100%);
       transition:transform .25s ease; overflow-y:auto;
     }
     nav.main-nav.open{transform:translateX(0);}
-    nav.main-nav a{padding:16px 4px; border-bottom:1px solid var(--line); font-size:17px;}
-    .header-phone{display:none;}
+    nav.main-nav a{padding:16px 4px; border-bottom:1px solid var(--line); font-size:17px; white-space:normal;}
     .nav-toggle{display:block;}
+  }
+  @media (max-width:600px){
+    .header-logo-img{height:38px;}
   }
 
   /* HERO */
@@ -577,10 +592,21 @@
 <body>
 
 <header class="site-header">
+  <div class="top-bar">
+    <div class="container top-bar-row">
+      <a href="mailto:hello@pittsburghsoftwash.com" class="top-bar-email">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 6l8 7 8-7"/></svg>
+        hello@pittsburghsoftwash.com
+      </a>
+      <a href="tel:+14125550147">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.79.65 2.65a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.43-1.22a2 2 0 0 1 2.11-.45c.86.31 1.75.53 2.65.65A2 2 0 0 1 22 16.92z"/></svg>
+        (412) 555-0147
+      </a>
+    </div>
+  </div>
   <div class="container header-row">
     <a href="#top" class="logo">
-      <img class="logo-mark" src="assetsPittSoftwash1/logo-icon.png" alt="Pittsburgh Softwash">
-      <span><span class="logo-text-navy">Pittsburgh</span> <span class="logo-text-teal">Softwash</span></span>
+      <img class="header-logo-img" src="assetsPittSoftwash1/logo-full.png" alt="Pittsburgh Softwash">
     </a>
     <nav class="main-nav" id="mainNav">
       <a href="#services">Services</a>
@@ -591,10 +617,6 @@
       <a href="#faq">FAQ</a>
     </nav>
     <div class="header-actions">
-      <a class="header-phone" href="tel:+14125550147">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0B1F3A" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.79.65 2.65a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.43-1.22a2 2 0 0 1 2.11-.45c.86.31 1.75.53 2.65.65A2 2 0 0 1 22 16.92z"/></svg>
-        (412) 555-0147
-      </a>
       <a class="btn btn-outline dark" href="#quote">Get Free Quote</a>
       <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="mainNav">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
