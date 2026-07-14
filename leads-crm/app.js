@@ -1,6 +1,10 @@
 (() => {
   'use strict';
 
+  // Paste your deployed Apps Script Web App URL here to connect out of the
+  // box, with no need to use the Setup panel. Leave as '' to require setup.
+  const DEFAULT_WEBAPP_URL = '';
+
   const STATUSES = ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost'];
   const TAG_CLASS = {
     'New': 'tag-accent',
@@ -140,7 +144,7 @@ function doPost(e) {
     else setState({ leads: SAMPLE_LEADS, usingSample: true });
   }
   function clearUrl() {
-    localStorage.removeItem('crm_webapp_url');
+    localStorage.setItem('crm_webapp_url', '');
     setState({ webAppUrl: '', urlDraft: '', leads: SAMPLE_LEADS, usingSample: true, showSetup: false });
   }
   function toggleSetup() { setState(s => ({ showSetup: !s.showSetup })); }
@@ -421,7 +425,8 @@ function doPost(e) {
   }
 
   function init() {
-    const saved = localStorage.getItem('crm_webapp_url') || '';
+    const stored = localStorage.getItem('crm_webapp_url');
+    const saved = stored !== null ? stored : DEFAULT_WEBAPP_URL;
     state.webAppUrl = saved;
     state.urlDraft = saved;
     if (saved) {
