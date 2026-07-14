@@ -12,40 +12,56 @@
   };
 
   const SAMPLE_LEADS = [
-    { id: 2, timestamp: '2026-07-10T14:22:00Z', name: 'Maya Whitfield', email: 'maya@brightfield.co', phone: '(415) 555-0148', company: 'Brightfield Co', message: 'Interested in a quote for the downtown remodel.', status: 'New', notes: '' },
-    { id: 3, timestamp: '2026-07-09T09:05:00Z', name: 'Dean Ostrowski', email: 'dean.o@ostro.com', phone: '(312) 555-0199', company: 'Ostro Manufacturing', message: 'Can you call me this week?', status: 'Contacted', notes: 'Left voicemail Tues.' },
-    { id: 4, timestamp: '2026-07-08T18:40:00Z', name: 'Priya Nandan', email: 'priya@nandanlaw.com', phone: '(646) 555-0122', company: 'Nandan Law', message: 'Looking for ongoing service, not one-off.', status: 'Qualified', notes: '' },
-    { id: 5, timestamp: '2026-07-06T11:15:00Z', name: 'Colin Reyes', email: 'colin@reyesbuild.net', phone: '(720) 555-0177', company: 'Reyes Build', message: '', status: 'Proposal Sent', notes: 'Sent proposal 7/6, following up Friday.' },
-    { id: 6, timestamp: '2026-07-01T08:00:00Z', name: 'Ingrid Solberg', email: 'ingrid@solberg.io', phone: '(206) 555-0133', company: 'Solberg Studio', message: 'Not a fit right now, revisit in Q4.', status: 'Lost', notes: '' }
+    { id: '7fae051f-2b6e-4e25-838d-39f574e893f4', timestamp: '2026-07-10T14:22:00Z', subject: 'Pittsburgh Softwash Lead', name: 'Maya Whitfield', phone: '(412) 555-0148', email: 'maya@brightfield.co', address: '214 Elm St, Pittsburgh, PA', service: 'Roof softwash', sqft: '2200', message: 'Interested in a quote for the roof before we list the house.', status: 'New', notes: '' },
+    { id: 'b6c1a9de-9f2e-4b7a-9d0b-2b6f5c7e1a22', timestamp: '2026-07-09T09:05:00Z', subject: 'Pittsburgh Softwash Lead', name: 'Dean Ostrowski', phone: '(412) 555-0199', email: 'dean.o@ostro.com', address: '88 Ridge Ave, Pittsburgh, PA', service: 'House wash', sqft: '3100', message: 'Can you call me this week?', status: 'Contacted', notes: 'Left voicemail Tues.' },
+    { id: '2e4f9b31-6a5d-4c88-9a1e-77c3d9f0b512', timestamp: '2026-07-08T18:40:00Z', subject: 'Pittsburgh Softwash Lead', name: 'Priya Nandan', phone: '(412) 555-0122', email: 'priya@nandanlaw.com', address: '410 Bellefield Ave, Pittsburgh, PA', service: 'Driveway & walkway', sqft: '900', message: 'Looking for ongoing service, not one-off.', status: 'Qualified', notes: '' },
+    { id: '9d3a5c70-1f4e-4a2b-8c6d-5e9f10a2b3c4', timestamp: '2026-07-06T11:15:00Z', subject: 'Pittsburgh Softwash Lead', name: 'Colin Reyes', phone: '(412) 555-0177', email: 'colin@reyesbuild.net', address: '77 Forbes Ave, Pittsburgh, PA', service: 'Gutter cleaning', sqft: '', message: '', status: 'Proposal Sent', notes: 'Sent proposal 7/6, following up Friday.' },
+    { id: 'c1b2a3d4-5e6f-4789-90ab-cdef01234567', timestamp: '2026-07-01T08:00:00Z', subject: 'Pittsburgh Softwash Lead', name: 'Ingrid Solberg', phone: '(412) 555-0133', email: 'ingrid@solberg.io', address: '19 Penn Ave, Pittsburgh, PA', service: 'Deck cleaning', sqft: '450', message: 'Not a fit right now, revisit in Q4.', status: 'Lost', notes: '' }
   ];
 
   const SCRIPT_CODE = `/**
  * Leads CRM — Google Apps Script backend
  * Paste into Extensions → Apps Script on the Sheet StaticForms writes to,
  * then Deploy → New deployment → Web app (Execute as: Me, Access: Anyone).
+ *
+ * Expected columns: A submitted_at | B submission_id | C subject | D name
+ * | E phone | F email | G address | H service | I sqft | J message
+ * | K Status | L notes
  */
 const SHEET_NAME = 'Sheet1';
-const COLS = { timestamp:1, name:2, email:3, phone:4, company:5, message:6, status:7, notes:8 };
+const COLS = {
+  submittedAt:1, submissionId:2, subject:3, name:4, phone:5, email:6,
+  address:7, service:8, sqft:9, message:10, status:11, notes:12
+};
 
 function _sheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sh = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
-  const header = sh.getRange(1,1,1,8).getValues()[0];
-  if (!header[6]) sh.getRange(1,7).setValue('Status');
-  if (!header[7]) sh.getRange(1,8).setValue('Notes');
+  const header = sh.getRange(1,1,1,12).getValues()[0];
+  if (!header[10]) sh.getRange(1,11).setValue('Status');
+  if (!header[11]) sh.getRange(1,12).setValue('notes');
   return sh;
 }
 function _json(obj){return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);}
+
+function _findRowBySubmissionId(sh, id) {
+  const last = sh.getLastRow();
+  if (last < 2) return -1;
+  const ids = sh.getRange(2, COLS.submissionId, last-1, 1).getValues();
+  for (let i=0;i<ids.length;i++) if (String(ids[i][0])===String(id)) return i+2;
+  return -1;
+}
 
 function doGet(e) {
   const sh = _sheet();
   const last = sh.getLastRow();
   if (last < 2) return _json({leads:[]});
-  const rows = sh.getRange(2,1,last-1,8).getValues();
-  const leads = rows.map((r,i)=>({
-    id:i+2, timestamp: r[0]? new Date(r[0]).toISOString():'',
-    name:r[1]||'', email:r[2]||'', phone:r[3]||'', company:r[4]||'', message:r[5]||'',
-    status:r[6]||'New', notes:r[7]||''
+  const rows = sh.getRange(2,1,last-1,12).getValues();
+  const leads = rows.map(r=>({
+    id: r[1]||'', timestamp: r[0]? new Date(r[0]).toISOString():'',
+    subject:r[2]||'', name:r[3]||'', phone:r[4]||'', email:r[5]||'',
+    address:r[6]||'', service:r[7]||'', sqft:r[8]||'', message:r[9]||'',
+    status:r[10]||'New', notes:r[11]||''
   })).filter(l=>l.name||l.email);
   return _json({leads});
 }
@@ -54,7 +70,8 @@ function doPost(e) {
   const body = JSON.parse(e.postData.contents || '{}');
   const sh = _sheet();
   if (body.action === 'update' && body.id) {
-    const row = Number(body.id);
+    const row = _findRowBySubmissionId(sh, body.id);
+    if (row === -1) return _json({ok:false, error:'Lead not found'});
     if (body.status !== undefined) sh.getRange(row, COLS.status).setValue(body.status);
     if (body.notes !== undefined) sh.getRange(row, COLS.notes).setValue(body.notes);
     return _json({ok:true});
@@ -164,7 +181,7 @@ function doPost(e) {
 
     let leads = s.leads.filter(l => {
       const q = s.search.trim().toLowerCase();
-      const matchesQ = !q || [l.name, l.email, l.company].some(v => (v || '').toLowerCase().includes(q));
+      const matchesQ = !q || [l.name, l.email, l.phone, l.address, l.service].some(v => (v || '').toLowerCase().includes(q));
       const matchesStatus = s.statusFilter === 'All' || l.status === s.statusFilter;
       return matchesQ && matchesStatus;
     });
@@ -188,7 +205,7 @@ function doPost(e) {
     const selected = selectedRaw ? { ...selectedRaw, dateLabel: fmtDate(selectedRaw.timestamp) } : null;
 
     const sortMarks = {};
-    ['name', 'company', 'status', 'timestamp'].forEach(k => {
+    ['name', 'service', 'status', 'timestamp'].forEach(k => {
       sortMarks[k] = s.sortKey === k ? (s.sortDir === 'asc' ? ' ↑' : ' ↓') : '';
     });
 
@@ -271,7 +288,7 @@ function doPost(e) {
 
         <div style="display:flex; gap:var(--space-3); align-items:center; margin-bottom:var(--space-4); flex-wrap:wrap;">
           <div class="field" style="flex:1; min-width:220px; margin:0;">
-            <input class="input" type="text" placeholder="Search name, email, company…" data-bind="search" value="${escapeHtml(state.search)}">
+            <input class="input" type="text" placeholder="Search name, email, phone, address, service…" data-bind="search" value="${escapeHtml(state.search)}">
           </div>
           <select class="input" style="width:auto; min-width:160px;" data-bind="statusFilter">
             <option value="All" ${state.statusFilter === 'All' ? 'selected' : ''}>All statuses</option>
@@ -290,20 +307,20 @@ function doPost(e) {
             <thead>
               <tr>
                 <th data-sort-key="name" style="cursor:pointer;">Name${v.sortMarks.name}</th>
-                <th data-sort-key="company" style="cursor:pointer;">Company${v.sortMarks.company}</th>
-                <th>Email</th>
+                <th data-sort-key="service" style="cursor:pointer;">Service${v.sortMarks.service}</th>
                 <th>Phone</th>
+                <th>Email</th>
                 <th data-sort-key="status" style="cursor:pointer;">Status${v.sortMarks.status}</th>
                 <th data-sort-key="timestamp" style="cursor:pointer;">Received${v.sortMarks.timestamp}</th>
               </tr>
             </thead>
             <tbody>
               ${v.visibleLeads.map(lead => `
-                <tr data-lead-id="${lead.id}" style="cursor:pointer;">
+                <tr data-lead-id="${escapeHtml(lead.id)}" style="cursor:pointer;">
                   <td style="font-weight:500;">${escapeHtml(lead.name)}</td>
-                  <td>${escapeHtml(lead.company)}</td>
-                  <td class="text-muted">${escapeHtml(lead.email)}</td>
+                  <td>${escapeHtml(lead.service)}</td>
                   <td class="text-muted">${escapeHtml(lead.phone)}</td>
+                  <td class="text-muted">${escapeHtml(lead.email)}</td>
                   <td><span class="tag ${lead.tagClass}">${escapeHtml(lead.status)}</span></td>
                   <td class="text-muted">${escapeHtml(lead.dateLabel)}</td>
                 </tr>
@@ -324,11 +341,14 @@ function doPost(e) {
         <div class="dialog blueprint elev-lg">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
           <div class="dialog-title">${escapeHtml(sel.name)}</div>
+          ${sel.subject ? `<div class="text-muted" style="font-size:12px; margin-top:-8px;">${escapeHtml(sel.subject)}</div>` : ''}
           <div class="dialog-body" style="display:flex; flex-direction:column; gap:var(--space-3);">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3);">
               <div><div class="text-muted" style="font-size:11px;">EMAIL</div><div>${escapeHtml(sel.email)}</div></div>
               <div><div class="text-muted" style="font-size:11px;">PHONE</div><div>${escapeHtml(sel.phone)}</div></div>
-              <div><div class="text-muted" style="font-size:11px;">COMPANY</div><div>${escapeHtml(sel.company)}</div></div>
+              <div><div class="text-muted" style="font-size:11px;">SERVICE</div><div>${escapeHtml(sel.service)}</div></div>
+              <div><div class="text-muted" style="font-size:11px;">SQFT</div><div>${escapeHtml(sel.sqft)}</div></div>
+              <div><div class="text-muted" style="font-size:11px;">ADDRESS</div><div>${escapeHtml(sel.address)}</div></div>
               <div><div class="text-muted" style="font-size:11px;">RECEIVED</div><div>${escapeHtml(sel.dateLabel)}</div></div>
             </div>
             ${sel.message ? `
@@ -390,7 +410,7 @@ function doPost(e) {
       el.addEventListener('click', () => sortBy(el.dataset.sortKey));
     });
     root.querySelectorAll('tr[data-lead-id]').forEach(tr => {
-      tr.addEventListener('click', () => openLead(Number(tr.dataset.leadId)));
+      tr.addEventListener('click', () => openLead(tr.dataset.leadId));
     });
 
     const backdrop = root.querySelector('.dialog-backdrop');
