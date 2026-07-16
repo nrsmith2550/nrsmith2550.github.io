@@ -22,7 +22,7 @@
  * lead's rows with the new item list.
  */
 
-const SHEET_NAME = 'Sheet1'; // change to your tab name
+const SHEET_NAME = 'Submissions'; // change to your tab name
 const COLS = {
   submittedAt: 1, submissionId: 2, subject: 3, name: 4, phone: 5, email: 6,
   address: 7, service: 8, sqft: 9, message: 10, status: 11, notes: 12
