@@ -3,7 +3,16 @@
 
   // Paste your deployed Apps Script Web App URL here to connect out of the
   // box, with no need to use the Setup panel. Leave as '' to require setup.
-  const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxT5ww4Zd45lYFIbw2DpRAV0B_8rRywCWcPFJSMvtpvlxsc8BMqCITMZbl-PtRuAsvV/exec';
+  const DEFAULT_WEBAPP_URL = '';
+
+  // Shown on generated quote PDFs.
+  const BUSINESS_NAME = 'Pittsburgh Softwash';
+  const BUSINESS_ADDRESS_LINES = ['123 Main St.', 'Pittsburgh 15235', 'United States'];
+  const BUSINESS_EMAIL = 'email@email.com';
+  // Save your logo (PNG/JPG) as logo.png next to index.html — it's picked up
+  // automatically. Missing file just means no logo on the PDF.
+  const LOGO_URL = 'logo.png';
+  const QUOTE_VALIDITY_DAYS = 15;
 
   const STATUSES = ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost'];
   const TAG_CLASS = {
@@ -174,7 +183,9 @@ function doPost(e) {
     quoteItemName: '',
     quoteItemQty: '1',
     quoteItemPrice: '',
-    savingQuote: false
+    quoteTaxRate: '8',
+    savingQuote: false,
+    creatingQuote: false
   };
 
   function setState(patch) {
@@ -221,7 +232,7 @@ function doPost(e) {
     const items = state.quotes.filter(q => q.leadId === id).map(q => ({ name: q.itemName, qty: q.qty, price: q.price }));
     setState({
       selectedId: id, statusDraft: lead.status || 'New', notesDraft: lead.notes || '',
-      quoteDraft: items, quoteItemName: '', quoteItemQty: '1', quoteItemPrice: ''
+      quoteDraft: items, quoteItemName: '', quoteItemQty: '1', quoteItemPrice: '', quoteTaxRate: '8'
     });
   }
   function closeDialog() { setState({ selectedId: null }); }
@@ -253,6 +264,144 @@ function doPost(e) {
       body: JSON.stringify({ action: 'saveQuote', leadId, items })
     }).then(() => setState({ savingQuote: false }))
       .catch(err => setState({ savingQuote: false, error: 'Quote save failed: ' + err.message }));
+  }
+
+  function onQuoteTaxRate(e) { setState({ quoteTaxRate: e.target.value }); }
+
+  let logoDataUrlPromise = null;
+  function getLogoDataUrl() {
+    if (!logoDataUrlPromise) {
+      logoDataUrlPromise = fetch(LOGO_URL)
+        .then(r => (r.ok ? r.blob() : Promise.reject()))
+        .then(blob => new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        }))
+        .catch(() => null);
+    }
+    return logoDataUrlPromise;
+  }
+
+  function nextQuoteNumber() {
+    const n = (parseInt(localStorage.getItem('crm_quote_seq') || '0', 10) || 0) + 1;
+    localStorage.setItem('crm_quote_seq', String(n));
+    return String(n).padStart(3, '0');
+  }
+
+  function fmtShortDate(d) {
+    return (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear();
+  }
+
+  function sanitizeFilename(s) {
+    return String(s || 'lead').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'lead';
+  }
+
+  function createQuotePdf() {
+    const lead = state.leads.find(l => l.id === state.selectedId);
+    if (!lead) return;
+    const items = state.quoteDraft;
+    const taxRate = Number(state.quoteTaxRate) || 0;
+
+    setState({ creatingQuote: true });
+    getLogoDataUrl().then(logo => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+      doc.setTextColor(20, 20, 20);
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const marginX = 48;
+      let y = 56;
+
+      if (logo) {
+        try { doc.addImage(logo, 'PNG', marginX, y - 10, 80, 80); } catch (e) { /* unsupported image format */ }
+      }
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(24);
+      doc.text('ESTIMATE', pageWidth - marginX, y, { align: 'right' });
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(BUSINESS_NAME, pageWidth - marginX, y + 26, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      let by = y + 40;
+      BUSINESS_ADDRESS_LINES.forEach(line => { doc.text(line, pageWidth - marginX, by, { align: 'right' }); by += 13; });
+      by += 6;
+      doc.text(BUSINESS_EMAIL, pageWidth - marginX, by, { align: 'right' });
+
+      y += 110;
+
+      const estimateNo = nextQuoteNumber();
+      const issueDate = new Date();
+      const validUntil = new Date(issueDate.getTime() + QUOTE_VALIDITY_DAYS * 86400000);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('FOR', marginX, y);
+      doc.setFont('helvetica', 'normal');
+      let fy = y + 16;
+      [lead.name, lead.address, lead.email, lead.phone].filter(Boolean).forEach(line => {
+        doc.text(String(line), marginX, fy);
+        fy += 14;
+      });
+
+      const metaLabelX = pageWidth - marginX - 90;
+      let my = y;
+      [
+        ['Estimate No.:', estimateNo],
+        ['Issue date:', fmtShortDate(issueDate)],
+        ['Valid until', fmtShortDate(validUntil)]
+      ].forEach(([label, value]) => {
+        doc.setFont('helvetica', 'normal');
+        doc.text(label, metaLabelX, my, { align: 'right' });
+        doc.setFont('helvetica', 'bold');
+        doc.text(value, pageWidth - marginX, my, { align: 'right' });
+        my += 15;
+      });
+
+      y = Math.max(fy, my) + 20;
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(10);
+      doc.text('Thank you for your business.', marginX, y);
+      y += 16;
+
+      const subtotal = items.reduce((sum, it) => sum + it.qty * it.price, 0);
+      const tax = subtotal * (taxRate / 100);
+      const total = subtotal + tax;
+
+      doc.autoTable({
+        startY: y,
+        margin: { left: marginX, right: marginX },
+        head: [['DESCRIPTION', 'QUANTITY', 'UNIT PRICE ($)', 'AMOUNT ($)']],
+        body: items.map(it => [it.name, String(it.qty), it.price.toFixed(2), (it.qty * it.price).toFixed(2)]),
+        theme: 'plain',
+        styles: { fontSize: 10, cellPadding: 6, textColor: [20, 20, 20] },
+        headStyles: { fillColor: [138, 144, 241], textColor: [30, 30, 40], fontStyle: 'bold' },
+        columnStyles: {
+          1: { halign: 'center' },
+          2: { halign: 'right' },
+          3: { halign: 'right' }
+        }
+      });
+
+      let ty = doc.lastAutoTable.finalY + 18;
+      doc.setTextColor(20, 20, 20);
+      doc.setFontSize(10);
+      [
+        ['SUBTOTAL:', fmtMoney(subtotal)],
+        ['TAX ' + taxRate + '% from ' + fmtMoney(subtotal), fmtMoney(tax)],
+        ['TOTAL (USD):', fmtMoney(total)]
+      ].forEach(([label, value]) => {
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, pageWidth - marginX - 140, ty, { align: 'right' });
+        doc.text(value, pageWidth - marginX, ty, { align: 'right' });
+        ty += 16;
+      });
+
+      doc.save('Estimate-' + sanitizeFilename(lead.name) + '-' + estimateNo + '.pdf');
+      setState({ creatingQuote: false });
+    });
   }
 
   function saveLead() {
@@ -303,7 +452,12 @@ function doPost(e) {
       index: i, name: it.name, qty: it.qty,
       priceLabel: fmtMoney(it.price), lineTotalLabel: fmtMoney(it.qty * it.price)
     }));
-    const quoteTotalLabel = fmtMoney(s.quoteDraft.reduce((sum, it) => sum + it.qty * it.price, 0));
+    const quoteTaxRate = Number(s.quoteTaxRate) || 0;
+    const quoteSubtotal = s.quoteDraft.reduce((sum, it) => sum + it.qty * it.price, 0);
+    const quoteTax = quoteSubtotal * (quoteTaxRate / 100);
+    const quoteSubtotalLabel = fmtMoney(quoteSubtotal);
+    const quoteTaxLabel = fmtMoney(quoteTax);
+    const quoteTotalLabel = fmtMoney(quoteSubtotal + quoteTax);
 
     const sortMarks = {};
     ['name', 'service', 'status', 'timestamp'].forEach(k => {
@@ -332,9 +486,13 @@ function doPost(e) {
 
       quoteItems,
       noQuoteItems: quoteItems.length === 0,
+      quoteSubtotalLabel,
+      quoteTaxLabel,
       quoteTotalLabel,
       savingQuote: s.savingQuote,
-      saveQuoteLabel: s.savingQuote ? 'Saving quote…' : 'Save quote'
+      saveQuoteLabel: s.savingQuote ? 'Saving quote…' : 'Save quote',
+      creatingQuote: s.creatingQuote,
+      createQuoteLabel: s.creatingQuote ? 'Preparing PDF…' : 'Create Quote'
     };
   }
 
@@ -501,9 +659,18 @@ function doPost(e) {
                 </div>
                 <button class="btn btn-secondary" data-action="add-quote-item">Add</button>
               </div>
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:var(--space-3);">
-                <div style="font-family:var(--font-heading); font-weight:600;">Total: ${escapeHtml(v.quoteTotalLabel)}</div>
-                <button class="btn btn-primary" data-action="save-quote" ${v.savingQuote ? 'disabled' : ''}>${escapeHtml(v.saveQuoteLabel)}</button>
+              <div style="display:flex; justify-content:flex-end; align-items:center; gap:var(--space-2); margin-top:var(--space-3);">
+                <label class="text-muted" style="font-size:12px;">Tax %</label>
+                <input class="input" type="text" inputmode="decimal" style="width:64px;" data-bind="quoteTaxRate" value="${escapeHtml(state.quoteTaxRate)}">
+              </div>
+              <div style="display:flex; flex-direction:column; gap:2px; margin-top:var(--space-2); font-size:13px;">
+                <div style="display:flex; justify-content:space-between;"><span class="text-muted">Subtotal</span><span>${escapeHtml(v.quoteSubtotalLabel)}</span></div>
+                <div style="display:flex; justify-content:space-between;"><span class="text-muted">Tax (${escapeHtml(state.quoteTaxRate)}%)</span><span>${escapeHtml(v.quoteTaxLabel)}</span></div>
+                <div style="display:flex; justify-content:space-between; font-family:var(--font-heading); font-weight:600; font-size:16px; margin-top:2px;"><span>Total</span><span>${escapeHtml(v.quoteTotalLabel)}</span></div>
+              </div>
+              <div style="display:flex; justify-content:flex-end; gap:var(--space-2); margin-top:var(--space-3);">
+                <button class="btn btn-secondary" data-action="save-quote" ${v.savingQuote ? 'disabled' : ''}>${escapeHtml(v.saveQuoteLabel)}</button>
+                <button class="btn btn-primary" data-action="create-quote-pdf" ${v.creatingQuote || v.noQuoteItems ? 'disabled' : ''}>${escapeHtml(v.createQuoteLabel)}</button>
               </div>
             </div>
 
@@ -566,6 +733,7 @@ function doPost(e) {
     byAction('save-lead')?.addEventListener('click', saveLead);
     byAction('add-quote-item')?.addEventListener('click', addQuoteItem);
     byAction('save-quote')?.addEventListener('click', saveQuote);
+    byAction('create-quote-pdf')?.addEventListener('click', createQuotePdf);
 
     root.querySelector('[data-bind="urlDraft"]')?.addEventListener('input', e => setState({ urlDraft: e.target.value }));
     root.querySelector('[data-bind="search"]')?.addEventListener('input', e => setState({ search: e.target.value }));
@@ -575,6 +743,7 @@ function doPost(e) {
     root.querySelector('[data-bind="quoteItemName"]')?.addEventListener('input', e => setState({ quoteItemName: e.target.value }));
     root.querySelector('[data-bind="quoteItemQty"]')?.addEventListener('input', e => setState({ quoteItemQty: e.target.value }));
     root.querySelector('[data-bind="quoteItemPrice"]')?.addEventListener('input', e => setState({ quoteItemPrice: e.target.value }));
+    root.querySelector('[data-bind="quoteTaxRate"]')?.addEventListener('input', onQuoteTaxRate);
 
     root.querySelectorAll('[data-sort-key]').forEach(el => {
       el.addEventListener('click', () => sortBy(el.dataset.sortKey));
