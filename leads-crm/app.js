@@ -3,7 +3,7 @@
 
   // Paste your deployed Apps Script Web App URL here to connect out of the
   // box, with no need to use the Setup panel. Leave as '' to require setup.
-  const DEFAULT_WEBAPP_URL = '';
+  const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxT5ww4Zd45lYFIbw2DpRAV0B_8rRywCWcPFJSMvtpvlxsc8BMqCITMZbl-PtRuAsvV/exec';
 
   const STATUSES = ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost'];
   const TAG_CLASS = {
