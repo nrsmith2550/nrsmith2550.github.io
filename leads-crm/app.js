@@ -3,7 +3,7 @@
 
   // Paste your deployed Apps Script Web App URL here to connect out of the
   // box, with no need to use the Setup panel. Leave as '' to require setup.
-  const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxT5ww4Zd45lYFIbw2DpRAV0B_8rRywCWcPFJSMvtpvlxsc8BMqCITMZbl-PtRuAsvV/exec';
+  const DEFAULT_WEBAPP_URL = '';
 
   // Shown on generated quote PDFs.
   const BUSINESS_NAME = 'Pittsburgh Softwash';
@@ -304,6 +304,7 @@ function doPost(e) {
     const items = state.quoteDraft;
     const taxRate = Number(state.quoteTaxRate) || 0;
 
+    saveQuote();
     setState({ creatingQuote: true });
     getLogoDataUrl().then(logo => {
       const { jsPDF } = window.jspdf;
@@ -406,16 +407,23 @@ function doPost(e) {
 
   function saveLead() {
     const id = state.selectedId;
-    const { statusDraft, notesDraft, webAppUrl, usingSample } = state;
+    const { statusDraft, notesDraft, webAppUrl, usingSample, quoteDraft } = state;
     setState(s => ({
-      leads: s.leads.map(l => l.id === id ? { ...l, status: statusDraft, notes: notesDraft } : l)
+      leads: s.leads.map(l => l.id === id ? { ...l, status: statusDraft, notes: notesDraft } : l),
+      quotes: [...s.quotes.filter(q => q.leadId !== id), ...quoteDraft.map(it => ({ leadId: id, itemName: it.name, qty: it.qty, price: it.price }))]
     }));
     if (usingSample || !webAppUrl) { setState({ selectedId: null }); return; }
     setState({ saving: true });
-    fetch(webAppUrl, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'update', id, status: statusDraft, notes: notesDraft })
-    }).then(() => setState({ saving: false, selectedId: null }))
+    Promise.all([
+      fetch(webAppUrl, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'update', id, status: statusDraft, notes: notesDraft })
+      }),
+      fetch(webAppUrl, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'saveQuote', leadId: id, items: quoteDraft })
+      })
+    ]).then(() => setState({ saving: false, selectedId: null }))
       .catch(err => setState({ saving: false, error: 'Save failed: ' + err.message }));
   }
 
