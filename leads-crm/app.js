@@ -3,7 +3,7 @@
 
   // Paste your deployed Apps Script Web App URL here to connect out of the
   // box, with no need to use the Setup panel. Leave as '' to require setup.
-  const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxT5ww4Zd45lYFIbw2DpRAV0B_8rRywCWcPFJSMvtpvlxsc8BMqCITMZbl-PtRuAsvV/exec';
+  const DEFAULT_WEBAPP_URL = '';
 
   const STATUSES = ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost'];
   const TAG_CLASS = {
@@ -23,6 +23,12 @@
     { id: 'c1b2a3d4-5e6f-4789-90ab-cdef01234567', timestamp: '2026-07-01T08:00:00Z', subject: 'Pittsburgh Softwash Lead', name: 'Ingrid Solberg', phone: '(412) 555-0133', email: 'ingrid@solberg.io', address: '19 Penn Ave, Pittsburgh, PA', service: 'Deck cleaning', sqft: '450', message: 'Not a fit right now, revisit in Q4.', status: 'Lost', notes: '' }
   ];
 
+  const SAMPLE_QUOTES = [
+    { leadId: '7fae051f-2b6e-4e25-838d-39f574e893f4', itemName: 'Roof softwash — full house', qty: 1, price: 450 },
+    { leadId: '7fae051f-2b6e-4e25-838d-39f574e893f4', itemName: 'Gutter brightening', qty: 1, price: 90 },
+    { leadId: 'b6c1a9de-9f2e-4b7a-9d0b-2b6f5c7e1a22', itemName: 'House wash', qty: 1, price: 380 }
+  ];
+
   const SCRIPT_CODE = `/**
  * Leads CRM — Google Apps Script backend
  * Paste into Extensions → Apps Script on the Sheet StaticForms writes to,
@@ -31,12 +37,20 @@
  * Expected columns: A submitted_at | B submission_id | C subject | D name
  * | E phone | F email | G address | H service | I sqft | J message
  * | K Status | L notes
+ *
+ * A second tab, "Quotes" (auto-created on first use), holds itemized quote
+ * line items linked back to a lead by submission_id:
+ *   A lead_id | B item_name | C qty | D price | E updated_at
+ * Each lead has at most one quote; saving a quote replaces all of that
+ * lead's rows with the new item list.
  */
 const SHEET_NAME = 'Sheet1';
 const COLS = {
   submittedAt:1, submissionId:2, subject:3, name:4, phone:5, email:6,
   address:7, service:8, sqft:9, message:10, status:11, notes:12
 };
+const QUOTES_SHEET_NAME = 'Quotes';
+const QUOTE_COLS = { leadId:1, itemName:2, qty:3, price:4, updatedAt:5 };
 
 function _sheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -44,6 +58,15 @@ function _sheet() {
   const header = sh.getRange(1,1,1,12).getValues()[0];
   if (!header[10]) sh.getRange(1,11).setValue('Status');
   if (!header[11]) sh.getRange(1,12).setValue('notes');
+  return sh;
+}
+function _quotesSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(QUOTES_SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(QUOTES_SHEET_NAME);
+    sh.getRange(1,1,1,5).setValues([['lead_id','item_name','qty','price','updated_at']]);
+  }
   return sh;
 }
 function _json(obj){return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);}
@@ -56,30 +79,55 @@ function _findRowBySubmissionId(sh, id) {
   return -1;
 }
 
+function _readQuotes() {
+  const sh = _quotesSheet();
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  const rows = sh.getRange(2,1,last-1,5).getValues();
+  return rows.map(r=>({ leadId:r[0]||'', itemName:r[1]||'', qty:Number(r[2])||0, price:Number(r[3])||0 }))
+    .filter(q=>q.leadId && q.itemName);
+}
+
 function doGet(e) {
   const sh = _sheet();
   const last = sh.getLastRow();
-  if (last < 2) return _json({leads:[]});
-  const rows = sh.getRange(2,1,last-1,12).getValues();
-  const leads = rows.map(r=>({
+  const leads = last < 2 ? [] : sh.getRange(2,1,last-1,12).getValues().map(r=>({
     id: r[1]||'', timestamp: r[0]? new Date(r[0]).toISOString():'',
     subject:r[2]||'', name:r[3]||'', phone:r[4]||'', email:r[5]||'',
     address:r[6]||'', service:r[7]||'', sqft:r[8]||'', message:r[9]||'',
     status:r[10]||'New', notes:r[11]||''
   })).filter(l=>l.name||l.email);
-  return _json({leads});
+  return _json({ leads, quotes: _readQuotes() });
 }
 
 function doPost(e) {
   const body = JSON.parse(e.postData.contents || '{}');
-  const sh = _sheet();
+
   if (body.action === 'update' && body.id) {
+    const sh = _sheet();
     const row = _findRowBySubmissionId(sh, body.id);
     if (row === -1) return _json({ok:false, error:'Lead not found'});
     if (body.status !== undefined) sh.getRange(row, COLS.status).setValue(body.status);
     if (body.notes !== undefined) sh.getRange(row, COLS.notes).setValue(body.notes);
     return _json({ok:true});
   }
+
+  if (body.action === 'saveQuote' && body.leadId) {
+    const sh = _quotesSheet();
+    const last = sh.getLastRow();
+    if (last >= 2) {
+      const ids = sh.getRange(2, QUOTE_COLS.leadId, last-1, 1).getValues();
+      for (let i=ids.length-1;i>=0;i--) if (String(ids[i][0])===String(body.leadId)) sh.deleteRow(i+2);
+    }
+    const items = Array.isArray(body.items) ? body.items : [];
+    if (items.length) {
+      const now = new Date().toISOString();
+      const values = items.map(it=>[body.leadId, it.name||'', Number(it.qty)||0, Number(it.price)||0, now]);
+      sh.getRange(sh.getLastRow()+1, 1, values.length, 5).setValues(values);
+    }
+    return _json({ok:true});
+  }
+
   return _json({ok:false, error:'Unknown action'});
 }`;
 
@@ -88,6 +136,10 @@ function doPost(e) {
     const d = new Date(iso);
     if (isNaN(d)) return '—';
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function fmtMoney(n) {
+    return '$' + (Number(n) || 0).toFixed(2);
   }
 
   function escapeHtml(v) {
@@ -106,6 +158,7 @@ function doPost(e) {
     urlDraft: '',
     showSetup: false,
     leads: [],
+    quotes: [],
     usingSample: true,
     loading: false,
     error: '',
@@ -116,7 +169,12 @@ function doPost(e) {
     selectedId: null,
     statusDraft: 'New',
     notesDraft: '',
-    saving: false
+    saving: false,
+    quoteDraft: [],
+    quoteItemName: '',
+    quoteItemQty: '1',
+    quoteItemPrice: '',
+    savingQuote: false
   };
 
   function setState(patch) {
@@ -129,10 +187,10 @@ function doPost(e) {
     fetch(url)
       .then(r => r.json())
       .then(data => {
-        setState({ leads: data.leads || [], usingSample: false, loading: false });
+        setState({ leads: data.leads || [], quotes: data.quotes || [], usingSample: false, loading: false });
       })
       .catch(err => {
-        setState({ error: 'Could not reach the Web App (' + err.message + '). Showing sample data instead.', leads: SAMPLE_LEADS, usingSample: true, loading: false });
+        setState({ error: 'Could not reach the Web App (' + err.message + '). Showing sample data instead.', leads: SAMPLE_LEADS, quotes: SAMPLE_QUOTES, usingSample: true, loading: false });
       });
   }
 
@@ -141,11 +199,11 @@ function doPost(e) {
     localStorage.setItem('crm_webapp_url', url);
     setState({ webAppUrl: url, showSetup: false });
     if (url) fetchLeads(url);
-    else setState({ leads: SAMPLE_LEADS, usingSample: true });
+    else setState({ leads: SAMPLE_LEADS, quotes: SAMPLE_QUOTES, usingSample: true });
   }
   function clearUrl() {
     localStorage.setItem('crm_webapp_url', '');
-    setState({ webAppUrl: '', urlDraft: '', leads: SAMPLE_LEADS, usingSample: true, showSetup: false });
+    setState({ webAppUrl: '', urlDraft: '', leads: SAMPLE_LEADS, quotes: SAMPLE_QUOTES, usingSample: true, showSetup: false });
   }
   function toggleSetup() { setState(s => ({ showSetup: !s.showSetup })); }
   function refresh() { if (state.webAppUrl) fetchLeads(state.webAppUrl); }
@@ -160,9 +218,42 @@ function doPost(e) {
   function openLead(id) {
     const lead = state.leads.find(l => l.id === id);
     if (!lead) return;
-    setState({ selectedId: id, statusDraft: lead.status || 'New', notesDraft: lead.notes || '' });
+    const items = state.quotes.filter(q => q.leadId === id).map(q => ({ name: q.itemName, qty: q.qty, price: q.price }));
+    setState({
+      selectedId: id, statusDraft: lead.status || 'New', notesDraft: lead.notes || '',
+      quoteDraft: items, quoteItemName: '', quoteItemQty: '1', quoteItemPrice: ''
+    });
   }
   function closeDialog() { setState({ selectedId: null }); }
+
+  function addQuoteItem() {
+    const name = state.quoteItemName.trim();
+    const qty = Number(state.quoteItemQty);
+    const price = Number(state.quoteItemPrice);
+    if (!name || !(qty > 0) || !(price >= 0)) return;
+    setState(s => ({
+      quoteDraft: [...s.quoteDraft, { name, qty, price }],
+      quoteItemName: '', quoteItemQty: '1', quoteItemPrice: ''
+    }));
+  }
+  function removeQuoteItem(index) {
+    setState(s => ({ quoteDraft: s.quoteDraft.filter((_, i) => i !== index) }));
+  }
+
+  function saveQuote() {
+    const leadId = state.selectedId;
+    const items = state.quoteDraft;
+    setState(s => ({
+      quotes: [...s.quotes.filter(q => q.leadId !== leadId), ...items.map(it => ({ leadId, itemName: it.name, qty: it.qty, price: it.price }))]
+    }));
+    if (state.usingSample || !state.webAppUrl) return;
+    setState({ savingQuote: true });
+    fetch(state.webAppUrl, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'saveQuote', leadId, items })
+    }).then(() => setState({ savingQuote: false }))
+      .catch(err => setState({ savingQuote: false, error: 'Quote save failed: ' + err.message }));
+  }
 
   function saveLead() {
     const id = state.selectedId;
@@ -208,6 +299,12 @@ function doPost(e) {
     const selectedRaw = s.leads.find(l => l.id === s.selectedId) || null;
     const selected = selectedRaw ? { ...selectedRaw, dateLabel: fmtDate(selectedRaw.timestamp) } : null;
 
+    const quoteItems = s.quoteDraft.map((it, i) => ({
+      index: i, name: it.name, qty: it.qty,
+      priceLabel: fmtMoney(it.price), lineTotalLabel: fmtMoney(it.qty * it.price)
+    }));
+    const quoteTotalLabel = fmtMoney(s.quoteDraft.reduce((sum, it) => sum + it.qty * it.price, 0));
+
     const sortMarks = {};
     ['name', 'service', 'status', 'timestamp'].forEach(k => {
       sortMarks[k] = s.sortKey === k ? (s.sortDir === 'asc' ? ' ↑' : ' ↓') : '';
@@ -231,7 +328,13 @@ function doPost(e) {
       noResults: visibleLeads.length === 0,
       selected,
       saving: s.saving,
-      saveLabel: s.saving ? 'Saving…' : 'Save'
+      saveLabel: s.saving ? 'Saving…' : 'Save',
+
+      quoteItems,
+      noQuoteItems: quoteItems.length === 0,
+      quoteTotalLabel,
+      savingQuote: s.savingQuote,
+      saveQuoteLabel: s.savingQuote ? 'Saving quote…' : 'Save quote'
     };
   }
 
@@ -361,6 +464,49 @@ function doPost(e) {
                 <div style="background:var(--color-surface); border:1px solid var(--color-divider); padding:var(--space-3); font-size:13px;">${escapeHtml(sel.message)}</div>
               </div>
             ` : ''}
+
+            <div>
+              <div class="text-muted" style="font-size:11px; margin-bottom:4px;">QUOTE</div>
+              <div style="border:1px solid var(--color-divider);">
+                <table class="table">
+                  <thead>
+                    <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    ${v.quoteItems.map(it => `
+                      <tr>
+                        <td>${escapeHtml(it.name)}</td>
+                        <td>${escapeHtml(it.qty)}</td>
+                        <td>${escapeHtml(it.priceLabel)}</td>
+                        <td>${escapeHtml(it.lineTotalLabel)}</td>
+                        <td><button class="btn btn-ghost btn-icon" style="width:24px; height:24px;" data-action="remove-quote-item" data-index="${it.index}" title="Remove">&times;</button></td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+                ${v.noQuoteItems ? `<div class="text-muted" style="padding:var(--space-3); text-align:center; font-size:13px;">No items yet.</div>` : ''}
+              </div>
+              <div style="display:flex; gap:var(--space-2); margin-top:var(--space-2); align-items:flex-end;">
+                <div class="field" style="margin:0; flex:2;">
+                  <label>Item</label>
+                  <input class="input" type="text" placeholder="Item name" data-bind="quoteItemName" value="${escapeHtml(state.quoteItemName)}">
+                </div>
+                <div class="field" style="margin:0; flex:1;">
+                  <label>Qty</label>
+                  <input class="input" type="text" inputmode="numeric" pattern="[0-9]*" data-bind="quoteItemQty" value="${escapeHtml(state.quoteItemQty)}">
+                </div>
+                <div class="field" style="margin:0; flex:1;">
+                  <label>Price</label>
+                  <input class="input" type="text" inputmode="decimal" placeholder="0.00" data-bind="quoteItemPrice" value="${escapeHtml(state.quoteItemPrice)}">
+                </div>
+                <button class="btn btn-secondary" data-action="add-quote-item">Add</button>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:var(--space-3);">
+                <div style="font-family:var(--font-heading); font-weight:600;">Total: ${escapeHtml(v.quoteTotalLabel)}</div>
+                <button class="btn btn-primary" data-action="save-quote" ${v.savingQuote ? 'disabled' : ''}>${escapeHtml(v.saveQuoteLabel)}</button>
+              </div>
+            </div>
+
             <div class="field" style="margin:0;">
               <label>Status</label>
               <select class="input" data-bind="statusDraft">
@@ -382,6 +528,11 @@ function doPost(e) {
   }
 
   function render() {
+    const active = document.activeElement;
+    const bind = active && root.contains(active) ? active.dataset.bind : null;
+    const selStart = bind && 'selectionStart' in active ? active.selectionStart : null;
+    const selEnd = bind && 'selectionEnd' in active ? active.selectionEnd : null;
+
     const v = computeVals();
     root.innerHTML = `
       <div style="min-height:100vh; background:var(--color-bg); color:var(--color-text); font-family:var(--font-body);">
@@ -392,6 +543,16 @@ function doPost(e) {
       </div>
     `;
     bindEvents();
+
+    if (bind) {
+      const el = root.querySelector(`[data-bind="${bind}"]`);
+      if (el) {
+        el.focus();
+        if (selStart != null) {
+          try { el.setSelectionRange(selStart, selEnd); } catch (e) { /* not a text-selectable input type */ }
+        }
+      }
+    }
   }
 
   function bindEvents() {
@@ -403,18 +564,26 @@ function doPost(e) {
     byAction('clear-url')?.addEventListener('click', clearUrl);
     byAction('close-dialog')?.addEventListener('click', closeDialog);
     byAction('save-lead')?.addEventListener('click', saveLead);
+    byAction('add-quote-item')?.addEventListener('click', addQuoteItem);
+    byAction('save-quote')?.addEventListener('click', saveQuote);
 
     root.querySelector('[data-bind="urlDraft"]')?.addEventListener('input', e => setState({ urlDraft: e.target.value }));
     root.querySelector('[data-bind="search"]')?.addEventListener('input', e => setState({ search: e.target.value }));
     root.querySelector('[data-bind="statusFilter"]')?.addEventListener('change', e => setState({ statusFilter: e.target.value }));
     root.querySelector('[data-bind="statusDraft"]')?.addEventListener('change', e => setState({ statusDraft: e.target.value }));
     root.querySelector('[data-bind="notesDraft"]')?.addEventListener('input', e => setState({ notesDraft: e.target.value }));
+    root.querySelector('[data-bind="quoteItemName"]')?.addEventListener('input', e => setState({ quoteItemName: e.target.value }));
+    root.querySelector('[data-bind="quoteItemQty"]')?.addEventListener('input', e => setState({ quoteItemQty: e.target.value }));
+    root.querySelector('[data-bind="quoteItemPrice"]')?.addEventListener('input', e => setState({ quoteItemPrice: e.target.value }));
 
     root.querySelectorAll('[data-sort-key]').forEach(el => {
       el.addEventListener('click', () => sortBy(el.dataset.sortKey));
     });
     root.querySelectorAll('tr[data-lead-id]').forEach(tr => {
       tr.addEventListener('click', () => openLead(tr.dataset.leadId));
+    });
+    root.querySelectorAll('[data-action="remove-quote-item"]').forEach(el => {
+      el.addEventListener('click', () => removeQuoteItem(Number(el.dataset.index)));
     });
 
     const backdrop = root.querySelector('.dialog-backdrop');
@@ -433,6 +602,7 @@ function doPost(e) {
       fetchLeads(saved);
     } else {
       state.leads = SAMPLE_LEADS;
+      state.quotes = SAMPLE_QUOTES;
       state.usingSample = true;
       render();
     }
