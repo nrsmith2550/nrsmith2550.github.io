@@ -540,6 +540,9 @@ function doPost(e) {
           </p>
           <div class="field">
             <label>Apps Script Web App URL</label>
+            <label>If Data won't load from Leads, copy and paste the link below</label>
+            <label>-----------------</label>
+            <label>https://script.google.com/macros/s/AKfycbxT5ww4Zd45lYFIbw2DpRAV0B_8rRywCWcPFJSMvtpvlxsc8BMqCITMZbl-PtRuAsvV/exec</label>
             <input class="input" type="text" placeholder="https://script.google.com/macros/s/…/exec" data-bind="urlDraft" value="${escapeHtml(state.urlDraft)}">
           </div>
           <div style="display:flex; gap:var(--space-2);">
