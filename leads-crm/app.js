@@ -3,7 +3,7 @@
 
   // Paste your deployed Apps Script Web App URL here to connect out of the
   // box, with no need to use the Setup panel. Leave as '' to require setup.
-  const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxT5ww4Zd45lYFIbw2DpRAV0B_8rRywCWcPFJSMvtpvlxsc8BMqCITMZbl-PtRuAsvV/exec';
+  const DEFAULT_WEBAPP_URL = '';
 
   // Shown on generated quote PDFs.
   const BUSINESS_NAME = 'Pittsburgh Softwash';
@@ -308,7 +308,7 @@ function doPost(e) {
     setState({ creatingQuote: true, error: '' });
     getLogoDataUrl().then(logo => {
       if (!window.jspdf || !window.jspdf.jsPDF) {
-        throw new Error('PDF library failed to load — check your internet connection and try again.');
+        throw new Error('PDF library failed to load — make sure vendor/jspdf.umd.min.js was deployed alongside index.html.');
       }
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'pt', format: 'letter' });
@@ -375,7 +375,7 @@ function doPost(e) {
       const total = subtotal + tax;
 
       if (typeof doc.autoTable !== 'function') {
-        throw new Error('PDF table library failed to load — check your internet connection and try again.');
+        throw new Error('PDF table library failed to load — make sure vendor/jspdf.plugin.autotable.min.js was deployed alongside index.html.');
       }
       doc.autoTable({
         startY: y,
