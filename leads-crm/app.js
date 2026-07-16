@@ -53,7 +53,7 @@
  * Each lead has at most one quote; saving a quote replaces all of that
  * lead's rows with the new item list.
  */
-const SHEET_NAME = 'Sheet1';
+const SHEET_NAME = 'Submissions';
 const COLS = {
   submittedAt:1, submissionId:2, subject:3, name:4, phone:5, email:6,
   address:7, service:8, sqft:9, message:10, status:11, notes:12
