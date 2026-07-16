@@ -3,7 +3,7 @@
 
   // Paste your deployed Apps Script Web App URL here to connect out of the
   // box, with no need to use the Setup panel. Leave as '' to require setup.
-  const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxT5ww4Zd45lYFIbw2DpRAV0B_8rRywCWcPFJSMvtpvlxsc8BMqCITMZbl-PtRuAsvV/exec';
+  const DEFAULT_WEBAPP_URL = '';
 
   // Shown on generated quote PDFs.
   const BUSINESS_NAME = 'Pittsburgh Softwash';
@@ -305,8 +305,11 @@ function doPost(e) {
     const taxRate = Number(state.quoteTaxRate) || 0;
 
     saveQuote();
-    setState({ creatingQuote: true });
+    setState({ creatingQuote: true, error: '' });
     getLogoDataUrl().then(logo => {
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        throw new Error('PDF library failed to load — check your internet connection and try again.');
+      }
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'pt', format: 'letter' });
       doc.setTextColor(20, 20, 20);
@@ -371,6 +374,9 @@ function doPost(e) {
       const tax = subtotal * (taxRate / 100);
       const total = subtotal + tax;
 
+      if (typeof doc.autoTable !== 'function') {
+        throw new Error('PDF table library failed to load — check your internet connection and try again.');
+      }
       doc.autoTable({
         startY: y,
         margin: { left: marginX, right: marginX },
@@ -402,6 +408,8 @@ function doPost(e) {
 
       doc.save('Estimate-' + sanitizeFilename(lead.name) + '-' + estimateNo + '.pdf');
       setState({ creatingQuote: false });
+    }).catch(err => {
+      setState({ creatingQuote: false, error: 'Could not create the quote PDF: ' + err.message });
     });
   }
 
@@ -615,6 +623,11 @@ function doPost(e) {
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
           <div class="dialog-title">${escapeHtml(sel.name)}</div>
           ${sel.subject ? `<div class="text-muted" style="font-size:12px; margin-top:-8px;">${escapeHtml(sel.subject)}</div>` : ''}
+          ${v.hasError ? `
+            <div class="card" style="border-color:var(--color-accent); padding:var(--space-3);">
+              <div class="card-body" style="opacity:1;">${escapeHtml(v.errorText)}</div>
+            </div>
+          ` : ''}
           <div class="dialog-body" style="display:flex; flex-direction:column; gap:var(--space-3);">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3);">
               <div><div class="text-muted" style="font-size:11px;">EMAIL</div><div>${escapeHtml(sel.email)}</div></div>
