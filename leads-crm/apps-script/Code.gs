@@ -20,6 +20,10 @@
  *   A lead_id | B item_name | C qty | D price | E updated_at
  * Each lead has at most one quote; saving a quote replaces all of that
  * lead's rows with the new item list.
+ *
+ * The CRM's "New Lead" button posts { action: 'create', ... } to add a row
+ * here directly (status "New", a fresh submission_id, submitted_at = now),
+ * for leads entered manually rather than through the website's form.
  */
 
 const SHEET_NAME = 'Submissions'; // change to your tab name
@@ -91,6 +95,17 @@ function doGet(e) {
 
 function doPost(e) {
   const body = JSON.parse(e.postData.contents || '{}');
+
+  if (body.action === 'create') {
+    const sh = _sheet();
+    const id = Utilities.getUuid();
+    sh.appendRow([
+      new Date(), id, body.subject || '', body.name || '', body.phone || '', body.email || '',
+      body.address || '', body.service || '', body.sqft || '', body.message || '',
+      'New', ''
+    ]);
+    return _json({ ok: true, id: id });
+  }
 
   if (body.action === 'update' && body.id) {
     const sh = _sheet();

@@ -52,6 +52,10 @@
  *   A lead_id | B item_name | C qty | D price | E updated_at
  * Each lead has at most one quote; saving a quote replaces all of that
  * lead's rows with the new item list.
+ *
+ * The CRM's "New Lead" button posts { action: 'create', ... } to add a row
+ * here directly (status "New", a fresh submission_id, submitted_at = now),
+ * for leads entered manually rather than through the website's form.
  */
 const SHEET_NAME = 'Submissions';
 const COLS = {
@@ -111,6 +115,17 @@ function doGet(e) {
 
 function doPost(e) {
   const body = JSON.parse(e.postData.contents || '{}');
+
+  if (body.action === 'create') {
+    const sh = _sheet();
+    const id = Utilities.getUuid();
+    sh.appendRow([
+      new Date(), id, body.subject||'', body.name||'', body.phone||'', body.email||'',
+      body.address||'', body.service||'', body.sqft||'', body.message||'',
+      'New', ''
+    ]);
+    return _json({ok:true, id:id});
+  }
 
   if (body.action === 'update' && body.id) {
     const sh = _sheet();
@@ -185,7 +200,17 @@ function doPost(e) {
     quoteItemPrice: '',
     quoteTaxRate: '8',
     savingQuote: false,
-    creatingQuote: false
+    creatingQuote: false,
+
+    showNewLead: false,
+    newLeadName: '',
+    newLeadPhone: '',
+    newLeadEmail: '',
+    newLeadAddress: '',
+    newLeadService: '',
+    newLeadSqft: '',
+    newLeadMessage: '',
+    savingNewLead: false
   };
 
   function setState(patch) {
@@ -236,6 +261,51 @@ function doPost(e) {
     });
   }
   function closeDialog() { setState({ selectedId: null }); }
+
+  function openNewLead() {
+    setState({
+      showNewLead: true, newLeadName: '', newLeadPhone: '', newLeadEmail: '',
+      newLeadAddress: '', newLeadService: '', newLeadSqft: '', newLeadMessage: ''
+    });
+  }
+  function closeNewLead() { setState({ showNewLead: false }); }
+
+  function createLead() {
+    const s = state;
+    const name = s.newLeadName.trim();
+    const email = s.newLeadEmail.trim();
+    if (!name && !email) return;
+
+    const localId = 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    const lead = {
+      id: localId,
+      timestamp: new Date().toISOString(),
+      subject: '',
+      name, email,
+      phone: s.newLeadPhone.trim(),
+      address: s.newLeadAddress.trim(),
+      service: s.newLeadService.trim(),
+      sqft: s.newLeadSqft.trim(),
+      message: s.newLeadMessage.trim(),
+      status: 'New', notes: ''
+    };
+    setState(st => ({ leads: [lead, ...st.leads], showNewLead: false }));
+
+    if (state.usingSample || !state.webAppUrl) return;
+    setState({ savingNewLead: true });
+    fetch(state.webAppUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'create', name: lead.name, phone: lead.phone, email: lead.email,
+        address: lead.address, service: lead.service, sqft: lead.sqft, message: lead.message
+      })
+    }).then(r => r.json()).then(data => {
+      setState(st => ({
+        savingNewLead: false,
+        leads: data.id ? st.leads.map(l => l.id === localId ? { ...l, id: data.id } : l) : st.leads
+      }));
+    }).catch(err => setState({ savingNewLead: false, error: 'Create lead failed: ' + err.message }));
+  }
 
   function addQuoteItem() {
     const name = state.quoteItemName.trim();
@@ -508,7 +578,11 @@ function doPost(e) {
       savingQuote: s.savingQuote,
       saveQuoteLabel: s.savingQuote ? 'Saving quote…' : 'Save quote',
       creatingQuote: s.creatingQuote,
-      createQuoteLabel: s.creatingQuote ? 'Preparing PDF…' : 'Create Quote'
+      createQuoteLabel: s.creatingQuote ? 'Preparing PDF…' : 'Create Quote',
+
+      showNewLead: s.showNewLead,
+      savingNewLead: s.savingNewLead,
+      createLeadLabel: s.savingNewLead ? 'Creating…' : 'Create lead'
     };
   }
 
@@ -540,9 +614,6 @@ function doPost(e) {
           </p>
           <div class="field">
             <label>Apps Script Web App URL</label>
-            <label>If Data won't load from Leads, copy and paste the link below</label>
-            <label>-----------------</label>
-            <label>https://script.google.com/macros/s/AKfycbxT5ww4Zd45lYFIbw2DpRAV0B_8rRywCWcPFJSMvtpvlxsc8BMqCITMZbl-PtRuAsvV/exec</label>
             <input class="input" type="text" placeholder="https://script.google.com/macros/s/…/exec" data-bind="urlDraft" value="${escapeHtml(state.urlDraft)}">
           </div>
           <div style="display:flex; gap:var(--space-2);">
@@ -578,6 +649,7 @@ function doPost(e) {
             <option value="All" ${state.statusFilter === 'All' ? 'selected' : ''}>All statuses</option>
             ${STATUSES.map(s => `<option value="${escapeHtml(s)}" ${state.statusFilter === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
           </select>
+          <button class="btn btn-primary" data-action="open-new-lead">New Lead</button>
         </div>
 
         ${v.hasError ? `
@@ -718,6 +790,54 @@ function doPost(e) {
     `;
   }
 
+  function renderNewLeadDialog(v) {
+    if (!v.showNewLead) return '';
+    return `
+      <div class="dialog-backdrop" data-action="close-backdrop-new-lead">
+        <div class="dialog blueprint elev-lg">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="dialog-title">New Lead</div>
+          <div class="dialog-body" style="display:flex; flex-direction:column; gap:var(--space-3);">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3);">
+              <div class="field" style="margin:0;">
+                <label>Name</label>
+                <input class="input" type="text" data-bind="newLeadName" value="${escapeHtml(state.newLeadName)}">
+              </div>
+              <div class="field" style="margin:0;">
+                <label>Phone</label>
+                <input class="input" type="text" data-bind="newLeadPhone" value="${escapeHtml(state.newLeadPhone)}">
+              </div>
+              <div class="field" style="margin:0;">
+                <label>Email</label>
+                <input class="input" type="text" data-bind="newLeadEmail" value="${escapeHtml(state.newLeadEmail)}">
+              </div>
+              <div class="field" style="margin:0;">
+                <label>Service</label>
+                <input class="input" type="text" data-bind="newLeadService" value="${escapeHtml(state.newLeadService)}">
+              </div>
+              <div class="field" style="margin:0;">
+                <label>Sqft</label>
+                <input class="input" type="text" inputmode="numeric" data-bind="newLeadSqft" value="${escapeHtml(state.newLeadSqft)}">
+              </div>
+              <div class="field" style="margin:0;">
+                <label>Address</label>
+                <input class="input" type="text" data-bind="newLeadAddress" value="${escapeHtml(state.newLeadAddress)}">
+              </div>
+            </div>
+            <div class="field" style="margin:0;">
+              <label>Message</label>
+              <textarea class="input" rows="3" data-bind="newLeadMessage">${escapeHtml(state.newLeadMessage)}</textarea>
+            </div>
+          </div>
+          <div class="dialog-actions">
+            <button class="btn btn-secondary" data-action="close-new-lead">Cancel</button>
+            <button class="btn btn-primary" data-action="create-lead" ${v.savingNewLead ? 'disabled' : ''}>${escapeHtml(v.createLeadLabel)}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function render() {
     const active = document.activeElement;
     const bind = active && root.contains(active) ? active.dataset.bind : null;
@@ -731,6 +851,7 @@ function doPost(e) {
         ${renderSetup(v)}
         ${renderMain(v)}
         ${renderDialog(v)}
+        ${renderNewLeadDialog(v)}
       </div>
     `;
     bindEvents();
@@ -758,6 +879,9 @@ function doPost(e) {
     byAction('add-quote-item')?.addEventListener('click', addQuoteItem);
     byAction('save-quote')?.addEventListener('click', saveQuote);
     byAction('create-quote-pdf')?.addEventListener('click', createQuotePdf);
+    byAction('open-new-lead')?.addEventListener('click', openNewLead);
+    byAction('close-new-lead')?.addEventListener('click', closeNewLead);
+    byAction('create-lead')?.addEventListener('click', createLead);
 
     root.querySelector('[data-bind="urlDraft"]')?.addEventListener('input', e => setState({ urlDraft: e.target.value }));
     root.querySelector('[data-bind="search"]')?.addEventListener('input', e => setState({ search: e.target.value }));
@@ -768,6 +892,13 @@ function doPost(e) {
     root.querySelector('[data-bind="quoteItemQty"]')?.addEventListener('input', e => setState({ quoteItemQty: e.target.value }));
     root.querySelector('[data-bind="quoteItemPrice"]')?.addEventListener('input', e => setState({ quoteItemPrice: e.target.value }));
     root.querySelector('[data-bind="quoteTaxRate"]')?.addEventListener('input', onQuoteTaxRate);
+    root.querySelector('[data-bind="newLeadName"]')?.addEventListener('input', e => setState({ newLeadName: e.target.value }));
+    root.querySelector('[data-bind="newLeadPhone"]')?.addEventListener('input', e => setState({ newLeadPhone: e.target.value }));
+    root.querySelector('[data-bind="newLeadEmail"]')?.addEventListener('input', e => setState({ newLeadEmail: e.target.value }));
+    root.querySelector('[data-bind="newLeadAddress"]')?.addEventListener('input', e => setState({ newLeadAddress: e.target.value }));
+    root.querySelector('[data-bind="newLeadService"]')?.addEventListener('input', e => setState({ newLeadService: e.target.value }));
+    root.querySelector('[data-bind="newLeadSqft"]')?.addEventListener('input', e => setState({ newLeadSqft: e.target.value }));
+    root.querySelector('[data-bind="newLeadMessage"]')?.addEventListener('input', e => setState({ newLeadMessage: e.target.value }));
 
     root.querySelectorAll('[data-sort-key]').forEach(el => {
       el.addEventListener('click', () => sortBy(el.dataset.sortKey));
@@ -779,11 +910,11 @@ function doPost(e) {
       el.addEventListener('click', () => removeQuoteItem(Number(el.dataset.index)));
     });
 
-    const backdrop = root.querySelector('.dialog-backdrop');
-    if (backdrop) {
-      backdrop.addEventListener('click', e => { if (e.target === e.currentTarget) closeDialog(); });
-      root.querySelector('.dialog')?.addEventListener('click', e => e.stopPropagation());
-    }
+    root.querySelectorAll('.dialog-backdrop').forEach(backdrop => {
+      const closer = backdrop.dataset.action === 'close-backdrop-new-lead' ? closeNewLead : closeDialog;
+      backdrop.addEventListener('click', e => { if (e.target === e.currentTarget) closer(); });
+      backdrop.querySelector('.dialog')?.addEventListener('click', e => e.stopPropagation());
+    });
   }
 
   function init() {
